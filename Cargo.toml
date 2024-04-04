@@ -9,9 +9,9 @@ authors = ["TgZ39"]
 [dependencies]
 chrono = "0.4.35"
 directories = "5.0.1"
-eframe = "0.26.2"
-egui = "0.26.2"
-egui_extras = { version = "0.26.2", features = ["datepicker"] }
+eframe = "0.27.2"
+egui = "0.27.2"
+egui_extras = { version = "0.27.2", features = ["datepicker"] }
 env_logger = "0.11.3"
 sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio", "chrono"] }
 tracing = "0.1.40"
