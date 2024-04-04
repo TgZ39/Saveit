@@ -7,6 +7,7 @@ use chrono::{Local, NaiveDate};
 use eframe::Theme;
 use egui::TextStyle::*;
 use egui::{CentralPanel, Context, FontFamily, FontId};
+use sqlx::SqlitePool;
 use tracing::*;
 
 use crate::config::{Config, FormatStandard};
@@ -22,26 +23,37 @@ mod settings_page;
 const TEXT_INPUT_WIDTH: f32 = 450.0;
 
 pub struct Application {
-    pub input_title: String,
-    pub input_url: String,
-    pub input_author: String,
-    pub input_published_date: NaiveDate,
-    input_published_disabled: bool,
-    pub input_viewed_date: NaiveDate,
-    pub input_comment: String,
+    source_input: SourceInput, // start page
     curr_page: AppPage,
     pub sources_cache: Arc<RwLock<Vec<Source>>>,
-    // cache needed because every time the user interacted (e.g. mouse movement) with the ui, a new DB request would be made. (30-60/s)
-    edit_windows_open: bool,
-    // using cell for more convenient editing of this value (btw fuck the borrow checker)
-    edit_source: Source,
-    input_format_standard: FormatStandard,
-    input_custom_format: String,
     search_query: String,
+    edit_modal: EditModal, // edit modal
+    settings: Settings, // settings page
+    pub pool: Arc<SqlitePool>
+}
+
+struct EditModal {
+    source: Source,
+    open: bool,
+}
+
+struct SourceInput {
+    title: String,
+    url: String,
+    author: String,
+    published_date: NaiveDate,
+    published_date_unknown: bool,
+    viewed_date: NaiveDate,
+    comment: String,
+}
+
+struct Settings {
+    format_standard: FormatStandard,
+    custom_format: String,
 }
 
 impl Application {
-    fn new(ctx: &Context) -> Self {
+    fn new(ctx: &Context, pool: Arc<SqlitePool>) -> Self {
         debug!("Creating new Application");
         // make font bigger
         configure_fonts(ctx);
@@ -49,36 +61,43 @@ impl Application {
         let config = Config::get_config();
 
         Self {
-            input_title: String::new(),
-            input_url: String::new(),
-            input_author: String::new(),
-            input_published_date: NaiveDate::from(Local::now().naive_local()), // Current date
-            input_published_disabled: false,
-            input_viewed_date: NaiveDate::from(Local::now().naive_local()), // Current date
-            input_comment: String::new(),
+            source_input: SourceInput {
+                title: String::new(),
+                url: String::new(),
+                author: String::new(),
+                published_date: Local::now().date_naive(),
+                published_date_unknown: false,
+                viewed_date: Local::now().date_naive(),
+                comment: String::new(),
+            },
             curr_page: AppPage::Start,
             sources_cache: Arc::new(RwLock::new(vec![])),
-            edit_windows_open: false,       // edit modal
-            edit_source: Source::default(), // source to edit in the edit modal
-            input_format_standard: config.format_standard,
-            input_custom_format: config.custom_format,
             search_query: String::new(),
+            edit_modal: EditModal {
+                source: Source::default(),
+                open: false,
+            },
+            settings: Settings {
+                custom_format: config.custom_format,
+                format_standard: config.format_standard,
+            },
+            pool
         }
     }
 
     // get input source from user
-    pub(crate) fn get_source(&self) -> Source {
+    pub fn get_source(&self) -> Source {
         trace!("Reading user source input");
 
         Source {
             id: -1,
-            title: self.input_title.clone(),
-            url: self.input_url.clone(),
-            author: self.input_author.clone(),
-            published_date: self.input_published_date,
-            viewed_date: self.input_viewed_date,
-            published_date_unknown: self.input_published_disabled,
-            comment: self.input_comment.clone(),
+            title: self.source_input.title.clone(),
+            url: self.source_input.url.clone(),
+            author: self.source_input.url.clone(),
+            published_date: self.source_input.published_date,
+            viewed_date: self.source_input.viewed_date,
+            published_date_unknown: self.source_input.published_date_unknown,
+            comment: self.source_input.comment.clone(),
         }
     }
 
@@ -86,26 +105,29 @@ impl Application {
     fn clear_input(&mut self) {
         trace!("Clearing user source input");
 
-        self.input_title.clear();
-        self.input_url.clear();
-        self.input_author.clear();
-        self.input_published_date = NaiveDate::from(Local::now().naive_local());
-        self.input_viewed_date = NaiveDate::from(Local::now().naive_local());
-        self.input_published_disabled = false;
-        self.input_comment.clear();
+        self.source_input.title.clear();
+        self.source_input.url.clear();
+        self.source_input.author.clear();
+        self.source_input.published_date = Local::now().date_naive();
+        self.source_input.viewed_date = Local::now().date_naive();
+        self.source_input.published_date_unknown = false;
+        self.source_input.comment.clear();
     }
 
     fn update_source_cache(&self) {
         trace!("Updating source cache");
 
         let sources = self.sources_cache.clone();
+        let pool = self.pool.clone();
+
+
         tokio::task::spawn(async move {
-            *sources.write().unwrap() = get_all_sources().await.expect("Error loading sources");
+            *sources.write().unwrap() = get_all_sources(&pool).await.expect("Error loading sources");
         });
     }
 }
 
-pub fn open_gui() -> Result<(), eframe::Error> {
+pub fn open_gui(pool: Arc<SqlitePool>) -> Result<(), eframe::Error> {
     // set up logging
     env_logger::init();
 
@@ -131,7 +153,7 @@ pub fn open_gui() -> Result<(), eframe::Error> {
     eframe::run_native(
         format!("SaveIt v{}", env!("CARGO_PKG_VERSION")).as_str(),
         options,
-        Box::new(|cc| Box::new(Application::new(&cc.egui_ctx))),
+        Box::new(|cc| Box::new(Application::new(&cc.egui_ctx, pool))),
     )
 }
 
@@ -240,7 +262,7 @@ pub fn set_clipboard(source: &Source, app: &Application) {
 
     let mut clipboard = Clipboard::new().unwrap();
 
-    let text = source.format(&app.input_format_standard);
+    let text = source.format(&app.settings.format_standard);
 
     clipboard.set_text(text).unwrap();
 }
@@ -253,7 +275,7 @@ pub fn set_all_clipboard(sources: &[Source], app: &Application) {
     let mut text = "".to_string();
 
     for source in sources {
-        text.push_str(source.format(&app.input_format_standard).as_str());
+        text.push_str(source.format(&app.settings.format_standard).as_str());
         text.push('\n');
     }
 

@@ -6,6 +6,7 @@ use crate::config::CONFIG_NAME;
 use clap::Parser;
 use directories::ProjectDirs;
 use std::fs;
+use std::sync::Arc;
 use tracing::*;
 
 use crate::database::establish_connection;
@@ -66,18 +67,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // setup database
     debug!("Executing database migrations...");
-    let mut conn = establish_connection()
+    let pool = Arc::new(establish_connection()
         .await
-        .expect("Error connection to database");
-
+        .expect("Error connection to database"));
+    
     // setup table
     sqlx::migrate!("./migrations")
-        .run(&mut conn)
+        .run(&*pool)
         .await
         .expect("Error executing database migrations");
 
     // open GUI
-    open_gui().expect("Error opening GUI");
+    open_gui(pool.clone()).expect("Error opening GUI");
 
     Ok(())
 }

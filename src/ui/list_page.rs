@@ -100,13 +100,13 @@ fn render_sources(app: &mut Application, ui: &mut Ui, ctx: &Context) {
                     // opens edit modal
                     if edit_button.clicked() {
                         trace!("Edit button clicked");
-                        app.edit_source = source.clone();
-                        app.edit_windows_open = true;
+                        app.edit_modal.source = source.clone();
+                        app.edit_modal.open = true;
                     }
 
                     let mut update_cache = false;
 
-                    if app.edit_windows_open && app.edit_source.id == source.id {
+                    if app.edit_modal.open && app.edit_modal.source.id == source.id {
                         // app.edit_source.id == source.id needed because else it would open an edit model x number of sources in the db
 
                         // needed because the borrow checker is fucking stupid
@@ -123,22 +123,23 @@ fn render_sources(app: &mut Application, ui: &mut Ui, ctx: &Context) {
                                     // input title
                                     let title_label = ui.label("Title:");
                                     let input_title =
-                                        TextEdit::singleline(&mut app.edit_source.title)
+                                        TextEdit::singleline(&mut app.edit_modal.source.title)
                                             .desired_width(TEXT_INPUT_WIDTH);
                                     ui.add(input_title).labelled_by(title_label.id);
                                     ui.end_row();
 
                                     // input URL
                                     let url_label = ui.label("URL:");
-                                    let input_url = TextEdit::singleline(&mut app.edit_source.url)
-                                        .desired_width(TEXT_INPUT_WIDTH);
+                                    let input_url =
+                                        TextEdit::singleline(&mut app.edit_modal.source.url)
+                                            .desired_width(TEXT_INPUT_WIDTH);
                                     ui.add(input_url).labelled_by(url_label.id);
                                     ui.end_row();
 
                                     // input author
                                     let author_label = ui.label("Author:");
                                     let input_author =
-                                        TextEdit::singleline(&mut app.edit_source.author)
+                                        TextEdit::singleline(&mut app.edit_modal.source.author)
                                             .hint_text("Leave empty if unknown")
                                             .desired_width(TEXT_INPUT_WIDTH);
                                     ui.add(input_author).labelled_by(author_label.id);
@@ -148,16 +149,16 @@ fn render_sources(app: &mut Application, ui: &mut Ui, ctx: &Context) {
                                     let published_label = ui.label("Date published:");
                                     ui.horizontal(|ui| {
                                         ui.add_enabled(
-                                            !app.edit_source.published_date_unknown,
+                                            !app.edit_modal.source.published_date_unknown,
                                             DatePickerButton::new(
-                                                &mut app.edit_source.published_date,
+                                                &mut app.edit_modal.source.published_date,
                                             )
                                             .id_source("InputPublishedDate") // needs to be set otherwise the UI would bug with multiple date pickers
                                             .show_icon(false),
                                         )
                                         .labelled_by(published_label.id);
                                         ui.checkbox(
-                                            &mut app.edit_source.published_date_unknown,
+                                            &mut app.edit_modal.source.published_date_unknown,
                                             "Unknown",
                                         );
                                     });
@@ -166,9 +167,11 @@ fn render_sources(app: &mut Application, ui: &mut Ui, ctx: &Context) {
                                     // input viewed date
                                     let viewed_label = ui.label("Date viewed:");
                                     ui.add(
-                                        DatePickerButton::new(&mut app.edit_source.viewed_date)
-                                            .id_source("InputViewedDate") // needs to be set otherwise the UI would bug with multiple date pickers
-                                            .show_icon(false),
+                                        DatePickerButton::new(
+                                            &mut app.edit_modal.source.viewed_date,
+                                        )
+                                        .id_source("InputViewedDate") // needs to be set otherwise the UI would bug with multiple date pickers
+                                        .show_icon(false),
                                     )
                                     .labelled_by(viewed_label.id);
                                     ui.end_row();
@@ -176,7 +179,7 @@ fn render_sources(app: &mut Application, ui: &mut Ui, ctx: &Context) {
                                     // input comment
                                     let comment_label = ui.label("Comment:");
                                     let input_comment =
-                                        TextEdit::multiline(&mut app.edit_source.comment)
+                                        TextEdit::multiline(&mut app.edit_modal.source.comment)
                                             .desired_width(TEXT_INPUT_WIDTH);
                                     ui.add(input_comment).labelled_by(comment_label.id);
                                     ui.end_row();
@@ -186,14 +189,18 @@ fn render_sources(app: &mut Application, ui: &mut Ui, ctx: &Context) {
 
                                 if ui.button("Save").clicked() {
                                     trace!("Edit modal save clicked");
-                                    handle_update_source(app.edit_source.id, &app.edit_source, app);
+                                    handle_update_source(
+                                        app.edit_modal.source.id,
+                                        &app.edit_modal.source,
+                                        app,
+                                    );
                                     update_cache = true;
-                                    app.edit_windows_open = false;
+                                    app.edit_modal.open = false;
                                 }
                             });
 
                         if !window_open {
-                            app.edit_windows_open = false;
+                            app.edit_modal.open = false;
                         }
                     }
 

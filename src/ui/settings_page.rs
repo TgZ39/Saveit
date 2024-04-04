@@ -7,15 +7,15 @@ use crate::ui::{Application, TEXT_INPUT_WIDTH};
 pub fn render(app: &mut Application, ui: &mut Ui) {
     // select source formatting standard
     ComboBox::from_label("Select source format")
-        .selected_text(format!("{:?}", app.input_format_standard))
+        .selected_text(format!("{:?}", app.settings.format_standard))
         .show_ui(ui, |ui| {
             ui.selectable_value(
-                &mut app.input_format_standard,
+                &mut app.settings.format_standard,
                 FormatStandard::Default,
                 "Default",
             );
             ui.selectable_value(
-                &mut app.input_format_standard,
+                &mut app.settings.format_standard,
                 FormatStandard::Custom,
                 "Custom",
             );
@@ -24,10 +24,10 @@ pub fn render(app: &mut Application, ui: &mut Ui) {
     ui.horizontal(|ui| {
         let custom_label = ui.label("Custom format:");
         let input_custom_format =
-            TextEdit::singleline(&mut app.input_custom_format).desired_width(TEXT_INPUT_WIDTH);
+            TextEdit::singleline(&mut app.settings.custom_format).desired_width(TEXT_INPUT_WIDTH);
 
         #[allow(clippy::match_like_matches_macro)] // clippy complaining again LOL
-        let custom_format_enabled = match app.input_format_standard {
+        let custom_format_enabled = match app.settings.format_standard {
             FormatStandard::Custom => true,
             _ => false,
         };
@@ -45,10 +45,10 @@ pub fn render(app: &mut Application, ui: &mut Ui) {
         let mut config = Config::get_config();
 
         // Source formatting standard
-        config.format_standard = app.input_format_standard.clone();
+        config.format_standard = app.settings.format_standard.clone();
 
         // Custom format
-        config.custom_format = app.input_custom_format.clone();
+        config.custom_format = app.settings.custom_format.clone();
 
         config.save();
     }
