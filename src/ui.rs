@@ -7,6 +7,7 @@ use chrono::{Local, NaiveDate};
 use eframe::Theme;
 use egui::TextStyle::*;
 use egui::{CentralPanel, Context, FontFamily, FontId};
+use sqlx::SqlitePool;
 use tracing::*;
 
 use crate::config::{Config, FormatStandard};
@@ -38,10 +39,11 @@ pub struct Application {
     input_format_standard: FormatStandard,
     input_custom_format: String,
     search_query: String,
+    pub db_pool: Arc<SqlitePool>,
 }
 
 impl Application {
-    fn new(ctx: &Context) -> Self {
+    fn new(ctx: &Context, pool: SqlitePool) -> Self {
         debug!("Creating new Application");
         // make font bigger
         configure_fonts(ctx);
@@ -63,6 +65,7 @@ impl Application {
             input_format_standard: config.format_standard,
             input_custom_format: config.custom_format,
             search_query: String::new(),
+            db_pool: Arc::new(pool),
         }
     }
 
@@ -99,13 +102,16 @@ impl Application {
         trace!("Updating source cache");
 
         let sources = self.sources_cache.clone();
+        let pool = self.db_pool.clone();
+
         tokio::task::spawn(async move {
-            *sources.write().unwrap() = get_all_sources().await.expect("Error loading sources");
+            *sources.write().unwrap() =
+                get_all_sources(&pool).await.expect("Error loading sources");
         });
     }
 }
 
-pub fn open_gui() -> Result<(), eframe::Error> {
+pub fn open_gui(pool: SqlitePool) -> Result<(), eframe::Error> {
     // set up logging
     env_logger::init();
 
@@ -131,7 +137,7 @@ pub fn open_gui() -> Result<(), eframe::Error> {
     eframe::run_native(
         format!("SaveIt v{}", env!("CARGO_PKG_VERSION")).as_str(),
         options,
-        Box::new(|cc| Box::new(Application::new(&cc.egui_ctx))),
+        Box::new(|cc| Box::new(Application::new(&cc.egui_ctx, pool))),
     )
 }
 

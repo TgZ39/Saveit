@@ -66,18 +66,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // setup database
     debug!("Executing database migrations...");
-    let mut conn = establish_connection()
+    let pool = establish_connection()
         .await
         .expect("Error connection to database");
 
     // setup table
     sqlx::migrate!("./migrations")
-        .run(&mut conn)
+        .run(&pool)
         .await
         .expect("Error executing database migrations");
 
     // open GUI
-    open_gui().expect("Error opening GUI");
+    open_gui(pool).expect("Error opening GUI");
 
     Ok(())
 }

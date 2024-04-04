@@ -2,7 +2,7 @@ use std::fs::create_dir_all;
 
 use directories::ProjectDirs;
 use sqlx::migrate::MigrateDatabase;
-use sqlx::{Connection, Sqlite, SqliteConnection};
+use sqlx::{Sqlite, SqlitePool};
 use tracing::*;
 
 use crate::source::Source;
@@ -15,7 +15,7 @@ macro_rules! db_version {
     };
 }
 
-pub async fn establish_connection() -> Result<SqliteConnection, sqlx::Error> {
+pub async fn establish_connection() -> Result<SqlitePool, sqlx::Error> {
     let db_path = ProjectDirs::from("com", "tgz39", "saveit")
         .unwrap()
         .data_dir()
@@ -50,12 +50,10 @@ pub async fn establish_connection() -> Result<SqliteConnection, sqlx::Error> {
 
     // connect to DB
     debug!("Establishing connection to database {}...", &db_loc);
-    SqliteConnection::connect(&db_loc).await
+    SqlitePool::connect(&db_loc).await
 }
 
-pub async fn insert_source(source: &Source) -> Result<(), sqlx::Error> {
-    let mut conn = establish_connection().await?;
-
+pub async fn insert_source(source: &Source, pool: &SqlitePool) -> Result<(), sqlx::Error> {
     debug!("Inserting source into database: {:#?}", &source);
 
     sqlx::query("INSERT INTO sources (title, url, author, published_date, viewed_date, published_date_unknown, comment) VALUES ($1, $2, $3, $4, $5, $6, $7)")
@@ -66,44 +64,34 @@ pub async fn insert_source(source: &Source) -> Result<(), sqlx::Error> {
         .bind(source.viewed_date)
         .bind(source.published_date_unknown)
         .bind(&source.comment)
-        .execute(&mut conn)
+        .execute(pool)
         .await?;
 
     Ok(())
 }
 
-pub async fn get_all_sources() -> Result<Vec<Source>, sqlx::Error> {
+pub async fn get_all_sources(pool: &SqlitePool) -> Result<Vec<Source>, sqlx::Error> {
     debug!("Fetching all sources");
 
-    let mut conn = establish_connection().await?;
-
     sqlx::query_as::<_, Source>("SELECT * FROM sources")
-        .fetch_all(&mut conn)
+        .fetch_all(pool)
         .await
 }
 
-pub async fn delete_source(id: i64) -> Result<(), sqlx::Error> {
+pub async fn delete_source(id: i64, pool: &SqlitePool) -> Result<(), sqlx::Error> {
     debug!("Deleting source: {}", id);
 
-    let mut conn = establish_connection().await?;
-
-    let res = sqlx::query("DELETE FROM sources WHERE id = $1")
+    sqlx::query("DELETE FROM sources WHERE id = $1")
         .bind(id)
-        .execute(&mut conn)
-        .await;
-
-    match res {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
+        .execute(pool)
+        .await
+        .map(|_| ())
 }
 
-pub async fn update_source(id: i64, source: &Source) -> Result<(), sqlx::Error> {
+pub async fn update_source(id: i64, source: &Source, pool: &SqlitePool) -> Result<(), sqlx::Error> {
     debug!("Updating source: {} to {:#?}", id, &source);
 
-    let mut conn = establish_connection().await?;
-
-    let res = sqlx::query("UPDATE sources SET title = $1, url = $2, author = $3, published_date = $4, viewed_date = $5, published_date_unknown = $6, comment = $7 WHERE id = $8")
+    sqlx::query("UPDATE sources SET title = $1, url = $2, author = $3, published_date = $4, viewed_date = $5, published_date_unknown = $6, comment = $7 WHERE id = $8")
         .bind(&source.title)
         .bind(&source.url)
         .bind(&source.author)
@@ -112,24 +100,24 @@ pub async fn update_source(id: i64, source: &Source) -> Result<(), sqlx::Error> 
         .bind(source.published_date_unknown)
         .bind(&source.comment)
         .bind(id)
-        .execute(&mut conn)
-        .await;
-
-    match res {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
+        .execute(pool)
+        .await
+        .map(|_| ())
 }
 
 // async delete source
 pub fn handle_delete_source(id: i64, app: &Application) {
     let source_cache = app.sources_cache.clone();
+    let pool = app.db_pool.clone();
 
     tokio::task::spawn(async move {
-        delete_source(id).await.expect("Error deleting source");
+        delete_source(id, &pool)
+            .await
+            .expect("Error deleting source");
 
         // update source cache
-        *source_cache.write().unwrap() = get_all_sources().await.expect("Error loading sources");
+        *source_cache.write().unwrap() =
+            get_all_sources(&pool).await.expect("Error loading sources");
     });
 }
 
@@ -137,14 +125,16 @@ pub fn handle_delete_source(id: i64, app: &Application) {
 pub fn handle_update_source(id: i64, source: &Source, app: &Application) {
     let source = source.clone();
     let source_cache = app.sources_cache.clone();
+    let pool = app.db_pool.clone();
 
     tokio::task::spawn(async move {
-        update_source(id, &source)
+        update_source(id, &source, &pool)
             .await
             .expect("Error deleting source");
 
         // update source cache
-        *source_cache.write().unwrap() = get_all_sources().await.expect("Error loading sources");
+        *source_cache.write().unwrap() =
+            get_all_sources(&pool).await.expect("Error loading sources");
     });
 }
 
@@ -152,13 +142,15 @@ pub fn handle_update_source(id: i64, source: &Source, app: &Application) {
 pub fn handle_source_save(app: &Application) {
     let source = app.get_source();
     let source_cache = app.sources_cache.clone();
+    let pool = app.db_pool.clone();
 
     tokio::task::spawn(async move {
-        insert_source(&source)
+        insert_source(&source, &pool)
             .await
             .expect("Error inserting source in database");
 
         // update source cache
-        *source_cache.write().unwrap() = get_all_sources().await.expect("Error loading sources");
+        *source_cache.write().unwrap() =
+            get_all_sources(&pool).await.expect("Error loading sources");
     });
 }
