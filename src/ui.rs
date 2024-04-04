@@ -155,7 +155,7 @@ pub fn open_gui(pool: Arc<SqlitePool>) -> Result<(), eframe::Error> {
     eframe::run_native(
         format!("SaveIt v{}", env!("CARGO_PKG_VERSION")).as_str(),
         options,
-        Box::new(|cc| Box::new(Application::new(&cc.egui_ctx, pool)))
+        Box::new(|cc| Box::new(Application::new(&cc.egui_ctx, pool))),
     )
 }
 
