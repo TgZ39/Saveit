@@ -67,10 +67,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // setup database
     debug!("Executing database migrations...");
-    let pool = Arc::new(establish_connection()
-        .await
-        .expect("Error connection to database"));
-    
+    let pool = Arc::new(
+        establish_connection()
+            .await
+            .expect("Error connection to database"),
+    );
+
     // setup table
     sqlx::migrate!("./migrations")
         .run(&*pool)

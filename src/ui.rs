@@ -28,8 +28,8 @@ pub struct Application {
     pub sources_cache: Arc<RwLock<Vec<Source>>>,
     search_query: String,
     edit_modal: EditModal, // edit modal
-    settings: Settings, // settings page
-    pub pool: Arc<SqlitePool>
+    settings: Settings,    // settings page
+    pub pool: Arc<SqlitePool>,
 }
 
 struct EditModal {
@@ -81,7 +81,7 @@ impl Application {
                 custom_format: config.custom_format,
                 format_standard: config.format_standard,
             },
-            pool
+            pool,
         }
     }
 
@@ -120,9 +120,9 @@ impl Application {
         let sources = self.sources_cache.clone();
         let pool = self.pool.clone();
 
-
         tokio::task::spawn(async move {
-            *sources.write().unwrap() = get_all_sources(&pool).await.expect("Error loading sources");
+            *sources.write().unwrap() =
+                get_all_sources(&pool).await.expect("Error loading sources");
         });
     }
 }

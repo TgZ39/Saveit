@@ -111,10 +111,13 @@ pub fn handle_delete_source(id: i64, app: &Application) {
     let pool = app.pool.clone();
 
     tokio::task::spawn(async move {
-        delete_source(id, &pool).await.expect("Error deleting source");
+        delete_source(id, &pool)
+            .await
+            .expect("Error deleting source");
 
         // update source cache
-        *source_cache.write().unwrap() = get_all_sources(&pool).await.expect("Error loading sources");
+        *source_cache.write().unwrap() =
+            get_all_sources(&pool).await.expect("Error loading sources");
     });
 }
 
@@ -130,7 +133,8 @@ pub fn handle_update_source(id: i64, source: &Source, app: &Application) {
             .expect("Error deleting source");
 
         // update source cache
-        *source_cache.write().unwrap() = get_all_sources(&pool).await.expect("Error loading sources");
+        *source_cache.write().unwrap() =
+            get_all_sources(&pool).await.expect("Error loading sources");
     });
 }
 
@@ -146,6 +150,7 @@ pub fn handle_source_save(app: &Application) {
             .expect("Error inserting source in database");
 
         // update source cache
-        *source_cache.write().unwrap() = get_all_sources(&pool).await.expect("Error loading sources");
+        *source_cache.write().unwrap() =
+            get_all_sources(&pool).await.expect("Error loading sources");
     });
 }

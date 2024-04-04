@@ -1,5 +1,8 @@
+use std::time::Duration;
+
 use confy::ConfyError;
 use serde::{Deserialize, Serialize};
+use tokio::time;
 use tracing::*;
 
 pub const CONFIG_NAME: &str = "save-it";
@@ -43,8 +46,13 @@ impl Config {
 
     pub fn save(&self) {
         debug!("Saving config");
+        let config = self.clone();
 
-        confy::store(CONFIG_NAME, None, self).expect("Error saving config");
+        tokio::task::spawn(async move {
+            time::sleep(Duration::from_secs(1)).await;
+
+            confy::store(CONFIG_NAME, None, config).expect("Error saving config");
+        });
     }
 }
 
