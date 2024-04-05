@@ -93,7 +93,7 @@ impl Application {
             id: -1,
             title: self.source_input.title.clone(),
             url: self.source_input.url.clone(),
-            author: self.source_input.url.clone(),
+            author: self.source_input.author.clone(),
             published_date: self.source_input.published_date,
             viewed_date: self.source_input.viewed_date,
             published_date_unknown: self.source_input.published_date_unknown,
