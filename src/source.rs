@@ -70,10 +70,10 @@ impl Source {
                 let published_date_format = {
                     let regex = Regex::new(r"\{P_DATE\((?<format>[^)]*)\)}").unwrap();
                     match regex.captures(&config.custom_format) {
-                        None => "%Y".to_string(),
+                        None => "%d. %m. %Y".to_string(),
                         Some(cap) => {
                             if cap["format"].to_string().is_empty() {
-                                "%Y".to_string()
+                                "%d. %m. %Y".to_string()
                             } else {
                                 cap["format"].to_string()
                             }
@@ -83,23 +83,34 @@ impl Source {
 
                 let mut out = config.custom_format;
 
-                out = out.replace("{INDEX}", &self.id.to_string());
-                out = out.replace("{TITLE}", &self.title);
-                out = out.replace("{URL}", &self.url);
-                out = out.replace("{AUTHOR}", &self.author);
+                let mut replace = |regex: &str, text: &str| {
+                    let regex = Regex::new(regex).expect("Faulty regex");
+                    out = regex.replace_all(&out, text).to_string();
+                };
+
+                replace(r"\{INDEX\}", &self.id.to_string());
+                replace(r"\{TITLE\}", &self.title);
+                replace(r"\{URL\}", &self.url);
+                replace(r"\{AUTHOR\}", &self.author);
 
                 // replace {P_DATE(*)} with the custom date
-                let regex_pub = Regex::new(r"\{P_DATE\([^)]*\)}").expect("Fault regex");
-                let pub_date = self
-                    .published_date
-                    .format(&published_date_format)
-                    .to_string();
-                out = regex_pub.replace_all(&out, pub_date).to_string();
+                if self.published_date_unknown {
+                    replace(r"\{P_DATE\([^)]*\)}", "Unknown");
+                } else {
+                    replace(
+                        r"\{P_DATE\([^)]*\)}",
+                        &self
+                            .published_date
+                            .format(&published_date_format)
+                            .to_string(),
+                    );
+                }
 
                 // replace {V_DATE(*)} with the custom date
-                let regex_viewed = Regex::new(r"\{V_DATE\([^)]*\)}").expect("Fault regex");
-                let viewed_date = self.published_date.format(&viewed_date_format).to_string();
-                out = regex_viewed.replace_all(&out, viewed_date).to_string();
+                replace(
+                    r"\{V_DATE\([^)]*\)}",
+                    &self.viewed_date.format(&viewed_date_format).to_string(),
+                );
 
                 out
             }
@@ -113,6 +124,7 @@ impl Source {
         {
             return true;
         }
+
         false
     }
 }
