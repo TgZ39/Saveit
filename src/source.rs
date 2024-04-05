@@ -138,8 +138,8 @@ impl Default for Source {
             title: String::new(),
             author: String::new(),
             url: String::new(),
-            published_date: chrono::NaiveDate::from(Local::now().naive_local()), // current date
-            viewed_date: chrono::NaiveDate::from(Local::now().naive_local()),    // current date
+            published_date: Local::now().date_naive(), // current date
+            viewed_date: Local::now().date_naive(),    // current date
             published_date_unknown: false,
             comment: String::new(),
         }
