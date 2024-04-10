@@ -57,7 +57,7 @@ impl Config {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Copy)]
 pub enum FormatStandard {
     Default,
     Custom,

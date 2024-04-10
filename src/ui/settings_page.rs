@@ -26,12 +26,9 @@ pub fn render(app: &mut Application, ui: &mut Ui) {
         let input_custom_format =
             TextEdit::singleline(&mut app.settings.custom_format).desired_width(TEXT_INPUT_WIDTH);
 
-        #[allow(clippy::match_like_matches_macro)] // clippy complaining again LOL
-        let custom_format_enabled = match app.settings.format_standard {
-            FormatStandard::Custom => true,
-            _ => false,
-        };
-        ui.add_enabled(custom_format_enabled, input_custom_format)
+        let enabled = matches!(app.settings.format_standard, FormatStandard::Custom);
+
+        ui.add_enabled(enabled, input_custom_format)
             .labelled_by(custom_label.id);
     });
 
@@ -45,7 +42,7 @@ pub fn render(app: &mut Application, ui: &mut Ui) {
         let mut config = Config::get_config();
 
         // Source formatting standard
-        config.format_standard = app.settings.format_standard.clone();
+        config.format_standard = app.settings.format_standard;
 
         // Custom format
         config.custom_format = app.settings.custom_format.clone();

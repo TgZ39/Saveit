@@ -263,7 +263,6 @@ pub fn set_clipboard(source: &Source, app: &Application) {
     debug!("Setting clipboard: {:?}", source);
 
     let mut clipboard = Clipboard::new().unwrap();
-
     let text = source.format(&app.settings.format_standard);
 
     clipboard.set_text(text).unwrap();
@@ -273,7 +272,6 @@ pub fn set_all_clipboard(sources: &[Source], app: &Application) {
     debug!("Setting clipboard with all sources");
 
     let mut clipboard = Clipboard::new().unwrap();
-
     let mut text = "".to_string();
 
     for source in sources {
