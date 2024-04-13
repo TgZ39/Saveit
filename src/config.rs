@@ -49,8 +49,6 @@ impl Config {
         let config = self.clone();
 
         tokio::task::spawn(async move {
-            time::sleep(Duration::from_secs(1)).await;
-
             confy::store(CONFIG_NAME, None, config).expect("Error saving config");
         });
     }
