@@ -1,8 +1,5 @@
-use std::time::Duration;
-
 use confy::ConfyError;
 use serde::{Deserialize, Serialize};
-use tokio::time;
 use tracing::*;
 
 pub const CONFIG_NAME: &str = "save-it";

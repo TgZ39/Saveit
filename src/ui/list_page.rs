@@ -1,13 +1,64 @@
+use chrono::{Datelike, NaiveDate};
 use egui::scroll_area::ScrollBarVisibility;
 use egui::text;
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use egui::{CentralPanel, Context, Grid, TextEdit, Ui};
 use egui_extras::DatePickerButton;
+use native_dialog::FileDialog;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use tokio::task;
 use tracing::*;
 
-use crate::database::{handle_delete_source, handle_update_source};
+use crate::database::{get_all_sources, handle_delete_source, handle_update_source, insert_source};
+use crate::source::Source;
 use crate::ui::{set_all_clipboard, set_clipboard, Application, TEXT_INPUT_WIDTH};
+
+#[derive(Serialize, Deserialize)]
+struct Entry {
+    id: i64,
+    title: String,
+    url: String,
+    author: String,
+    published_date: i32,
+    viewed_date: i32,
+    published_date_unknown: bool,
+    comment: String,
+}
+
+impl From<Source> for Entry {
+    fn from(value: Source) -> Self {
+        Self {
+            id: value.id,
+            title: value.title,
+            url: value.url,
+            author: value.author,
+            published_date: value.published_date.num_days_from_ce(),
+            viewed_date: value.viewed_date.num_days_from_ce(),
+            published_date_unknown: value.published_date_unknown,
+            comment: value.comment,
+        }
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<Source> for Entry {
+    fn into(self) -> Source {
+        Source {
+            id: self.id,
+            title: self.title,
+            url: self.url,
+            author: self.author,
+            published_date: NaiveDate::from_num_days_from_ce_opt(self.published_date).unwrap(),
+            viewed_date: NaiveDate::from_num_days_from_ce_opt(self.viewed_date).unwrap(),
+            published_date_unknown: self.published_date_unknown,
+            comment: self.comment,
+        }
+    }
+}
 
 pub fn render(app: &mut Application, ui: &mut Ui, ctx: &Context) {
     ui.horizontal(|ui| {
@@ -25,6 +76,89 @@ pub fn render(app: &mut Application, ui: &mut Ui, ctx: &Context) {
         // Clear button
         if ui.button("Clear").clicked() {
             app.search_query.clear();
+        }
+
+        if ui.button("Import").clicked() {
+            let path = FileDialog::new()
+                .set_location("~")
+                .set_title("Select File")
+                .add_filter("Json", &["json"])
+                .show_open_single_file()
+                .unwrap();
+
+            let path = match path {
+                None => return,
+                Some(path) => path,
+            };
+            let content = fs::read_to_string(path).expect("Error reading file");
+            let entries =
+                serde_json::from_str::<Vec<Entry>>(&content).expect("Error deserializing Json");
+
+            let sources = {
+                let mut out = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    out.push(entry.into());
+                }
+                out
+            };
+
+            let pool = app.pool.clone();
+            let source_cache = app.sources_cache.clone();
+
+            task::spawn(async move {
+                let mut handles = vec![];
+
+                for source in sources {
+                    let pool = pool.clone();
+
+                    handles.push(task::spawn(async move {
+                        insert_source(&source, &pool)
+                            .await
+                            .expect("Error saving source");
+                    }));
+                }
+
+                for handle in handles {
+                    handle.await.expect("Error saving source");
+                }
+                *source_cache.write().unwrap() = get_all_sources(&pool).await.unwrap();
+            });
+        }
+
+        if ui.button("Export").clicked() {
+            let path = FileDialog::new()
+                .set_location("~")
+                .set_title("Select file")
+                .set_filename("export.json")
+                .add_filter("Json", &["json"])
+                .show_save_single_file()
+                .unwrap();
+
+            let path = match path {
+                None => return,
+                Some(path) => path,
+            };
+            let mut file = match File::create(path) {
+                Ok(f) => f,
+                Err(_) => return,
+            };
+
+            let sources = app
+                .sources_cache
+                .read()
+                .expect("Error reading source cache");
+            let sources = {
+                let mut out = Vec::with_capacity(sources.len());
+                for source in &*sources {
+                    out.push(Entry::from(source.to_owned()))
+                }
+                out
+            };
+            let json =
+                serde_json::to_string_pretty(&sources).expect("Error converting sources to json");
+
+            file.write_all(json.as_bytes())
+                .expect("Error writing to file");
         }
     });
 

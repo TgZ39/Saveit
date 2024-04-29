@@ -123,8 +123,6 @@ impl Application {
         tokio::task::spawn(async move {
             *sources.write().unwrap() =
                 get_all_sources(&pool).await.expect("Error loading sources");
-            *sources.write().unwrap() =
-                get_all_sources(&pool).await.expect("Error loading sources");
         });
     }
 }
@@ -134,8 +132,8 @@ pub fn open_gui(pool: Arc<SqlitePool>) -> Result<(), eframe::Error> {
     env_logger::init();
 
     let mut viewport = egui::ViewportBuilder::default()
-        .with_inner_size([700.0, 500.0])
-        .with_min_inner_size([590.0, 280.0]);
+        .with_inner_size([750.0, 500.0])
+        .with_min_inner_size([715.0, 280.0]);
 
     // load icon
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"));
