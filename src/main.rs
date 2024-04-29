@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window
 #![allow(non_snake_case)]
 
 use crate::args::{CliArgs, VerbosityLevel};
